@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -478,6 +479,32 @@ ul{list-style:none}
 
 /* Hero abacus card */
 .hero__visual{position:relative;display:flex;align-items:center;justify-content:center}
+.hero__image-wrap{
+  position:relative;
+  width:100%;
+  max-width:520px;
+  aspect-ratio:1/1;
+  border-radius:var(--r-2xl);
+  overflow:hidden;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.2),
+    0 40px 100px rgba(0,0,0,.5),
+    0 0 80px rgba(0,131,213,.15);
+}
+.hero__image-wrap::before{
+  content:'';
+  position:absolute;top:0;left:15%;right:15%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
+  z-index:2;pointer-events:none;
+}
+.hero__image{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
 .abacus-card{
   position:relative;
   width:100%;max-width:520px;
@@ -1297,13 +1324,9 @@ ul{list-style:none}
     </div>
 
     <div class="hero__visual" data-reveal="scale" style="--d:.12s">
-      <div class="abacus-card" id="abacusCard">
-        <div class="abacus-stage" id="abacusStage"></div>
-        <span class="hero__note hand">…generating young genius</span>
+      <div class="hero__image-wrap">
+        <img src="abcs.png" alt="Genius Abacus learning" class="hero__image" width="520" height="520">
       </div>
-      <div class="chip-float chip-float--a"><i>🧠</i> Mental Math</div>
-      <div class="chip-float chip-float--b"><i>✋</i> Finger Dexterity</div>
-      <div class="chip-float chip-float--c"><i>🎯</i> Focus</div>
     </div>
   </div>
 
@@ -1705,162 +1728,20 @@ ul{list-style:none}
   </div>
 </footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
 
-<script type="text/babel" data-presets="react">
+<!-- Gallery is pure vanilla (no React / Babel) to avoid syntax errors -->
+<script>
 (function(){
   'use strict';
-  const { useEffect, useRef } = React;
 
-  const GRAIN_VERT = `
-    attribute vec2 position;
-    attribute vec2 uv;
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = vec4(position, 0.0, 1.0);
-    }`;
-
-  const GRAIN_FRAG = `
-    precision highp float;
-    uniform sampler2D tDiffuse;
-    uniform float uTime;
-    uniform vec2  uResolution;
-    uniform float uEdgeWidth;
-    uniform float uNoiseSpeed;
-    uniform float uGrainScale;
-    uniform float uGrainAmount;
-    varying vec2 vUv;
-
-    vec3 permute(vec3 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
-
-    float snoise(vec2 v) {
-      const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
-      vec2 i  = floor(v + dot(v, C.yy));
-      vec2 x0 = v - i + dot(i, C.xx);
-      vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-      vec4 x12 = x0.xyxy + C.xxzz;
-      x12.xy -= i1;
-      i = mod(i, 289.0);
-      vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
-      vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-      m = m * m * m * m;
-      vec3 x = 2.0 * fract(p * C.www) - 1.0;
-      vec3 h = abs(x) - 0.5;
-      vec3 ox = floor(x + 0.5);
-      vec3 a0 = x - ox;
-      m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
-      vec3 g;
-      g.x  = a0.x  * x0.x  + h.x  * x0.y;
-      g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-      return 130.0 * dot(m, g);
-    }
-
-    float fbm(vec2 p) {
-      float v = 0.0;
-      float a = 0.5;
-      for (int i = 0; i < 4; i++) {
-        v += a * snoise(p);
-        p = p * 2.1 + vec2(1.7, 9.2);
-        a *= 0.5;
-      }
-      return v;
-    }
-
-    void main() {
-      float leftBand  = 1.0 - smoothstep(0.0, uEdgeWidth, vUv.x);
-      float rightBand = smoothstep(1.0 - uEdgeWidth, 1.0, vUv.x);
-      float xMask = max(leftBand, rightBand);
-
-      if (xMask <= 0.001) {
-        gl_FragColor = texture2D(tDiffuse, vUv);
-        return;
-      }
-
-      float mask = pow(xMask, 3.0) * 3.0;
-      float ar = uResolution.x / max(uResolution.y, 1.0);
-      float t = uTime * uNoiseSpeed * (uGrainScale * 0.015);
-      vec2 noiseUV = vec2(vUv.x * ar, vUv.y) * uGrainScale;
-
-      float dx = fbm(noiseUV + vec2(t, t * 0.5)) * uGrainAmount;
-      float dy = fbm(noiseUV + vec2(-t * 0.3, t * 0.8)) * uGrainAmount;
-
-      vec2 warpedUV = vUv + vec2(dx, dy) * mask;
-
-      vec4 col = vec4(0.0);
-      if (warpedUV.x >= 0.0 && warpedUV.x <= 1.0 && warpedUV.y >= 0.0 && warpedUV.y <= 1.0) {
-        col = texture2D(tDiffuse, warpedUV);
-      }
-
-      float colorDecay = max(smoothstep(1.0, 0.1, mask / 6.0), 0.1);
-      gl_FragColor = vec4(col.rgb * colorDecay, col.a);
-    }`;
-
-  function compileShader(gl, type, src){
-    const s = gl.createShader(type);
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-      console.warn('GrainyGallery shader:', gl.getShaderInfoLog(s));
-    }
-    return s;
-  }
-
-  function drawCover(ctx, img, boxX, boxY, boxW, boxH, pct){
-    const t = Math.max(0, Math.min(100, pct)) / 100;
-    const short = Math.min(boxW, boxH);
-    const x = boxX + (t * (boxW - short)) / 2;
-    const y = boxY + (t * (boxH - short)) / 2;
-    const w = boxW - t * (boxW - short);
-    const h = boxH - t * (boxH - short);
-    const r = (t * short) / 2;
-    if (!img || !img.complete || !img.naturalWidth) return;
-
-    const imgRatio = img.naturalWidth / img.naturalHeight;
-    const boxRatio = w / h;
-    let sx, sy, sw, sh;
-    if (imgRatio > boxRatio) {
-      sh = img.naturalHeight;
-      sw = sh * boxRatio;
-      sx = (img.naturalWidth - sw) / 2;
-      sy = 0;
-    } else {
-      sw = img.naturalWidth;
-      sh = sw / boxRatio;
-      sx = 0;
-      sy = (img.naturalHeight - sh) / 2;
-    }
-    const rr = Math.max(0, Math.min(r, w / 2, h / 2));
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.lineTo(x + w - rr, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
-    ctx.lineTo(x + w, y + h - rr);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
-    ctx.lineTo(x + rr, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
-    ctx.lineTo(x, y + rr);
-    ctx.quadraticCurveTo(x, y, x + rr, y);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-    ctx.restore();
-  }
+  /* ---------- Simple premium gallery (vanilla) ---------- */
+  var GALLERY_IMAGES = ['gnab2.png', 'gnab3.png', 'gnab4.png', 'gnab5.png'];
 
   function placeholderSVG(i){
-    const pairs = [
-      ['0083D5','00A3E8'],
-      ['00C4FF','4DB8FF'],
-      ['214775','0083D5'],
-      ['00A3E8','CFE7F3']
-    ];
-    const [a, b] = pairs[i % pairs.length];
-    const n = String(i + 1).padStart(2, '0');
-    const svg =
-      "<svg xmlns='http://www.w3.org/2000/svg' width='900' height='900'>" +
+    var pairs = [['0083D5','00A3E8'],['00C4FF','4DB8FF'],['214775','0083D5'],['00A3E8','CFE7F3']];
+    var a = pairs[i % pairs.length][0], b = pairs[i % pairs.length][1];
+    var n = String(i + 1).padStart(2, '0');
+    var svg = "<svg xmlns='http://www.w3.org/2000/svg' width='900' height='900'>" +
       "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>" +
       "<stop offset='0' stop-color='#"+a+"'/><stop offset='1' stop-color='#"+b+"'/>" +
       "</linearGradient></defs>" +
@@ -1871,359 +1752,155 @@ ul{list-style:none}
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
   }
 
-  function GrainyGallery({
-    images = ['gnab2.png','gnab3.png','gnab4.png','gnab5.png'],
-    cardWidth = 420,
-    cardHeight = 420,
-    gap = 22,
-    rounded = 14,
-    snapInterval = 4.2,
-    damping = 0.22,
-    zoom = 0.06,
-    dragGain = 1.05,
-    edgeWidth = 0.14,
-    noiseSpeed = 0.28,
-    grainScale = 250,
-    grainAmount = 0.18
-  }){
-    const hostRef = useRef(null);
-    const glRef = useRef(null);
-    const fbRef = useRef(null);
+  function buildGallery(){
+    var root = document.getElementById('grainyRoot');
+    if (!root) return;
 
-    useEffect(() => {
-      const host = hostRef.current;
-      const glCanvas = glRef.current;
-      const fbCanvas = fbRef.current;
-      if (!host || !glCanvas || !fbCanvas) return;
+    root.innerHTML =
+      '<section class="grainy-section" id="gallery">' +
+        '<div class="orb-layer" aria-hidden="true">' +
+          '<div class="orb orb--blue orb--xl" style="top:-15%;left:-10%"></div>' +
+          '<div class="orb orb--cyan orb--xl" style="bottom:-15%;right:-10%"></div>' +
+        '</div>' +
+        '<div class="grainy-head">' +
+          '<p class="eyebrow">In Practice</p>' +
+          '<h2 class="display">Moments from<br>the classroom.</h2>' +
+          '<p class="lead" style="margin-left:auto;margin-right:auto">' +
+            'Drag, scroll, or tap — the strip glides and snaps.' +
+          '</p>' +
+        '</div>' +
+        '<div class="grainy-host" id="galleryHost">' +
+          '<div class="gallery-track" id="galleryTrack"></div>' +
+          '<div class="grainy-hint"><i></i> Drag · Scroll · Tap</div>' +
+        '</div>' +
+        '<div class="grainy-meta">' +
+          '<p>Drag to explore · Click a card to centre it</p>' +
+          '<div class="grainy-dots" id="grainyDots" aria-hidden="true"></div>' +
+        '</div>' +
+      '</section>';
 
-      const strip = document.createElement('canvas');
-      const stripCtx = strip.getContext('2d');
+    var track = document.getElementById('galleryTrack');
+    var host = document.getElementById('galleryHost');
+    var dotsRoot = document.getElementById('grainyDots');
 
-      let loaded = images.map((src, i) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onerror = function(){ img.src = placeholderSVG(i); };
-        img.src = src;
-        return img;
-      });
+    // Build cards
+    GALLERY_IMAGES.forEach(function(src, i){
+      var card = document.createElement('div');
+      card.className = 'gallery-card';
+      card.dataset.index = i;
+      var img = document.createElement('img');
+      img.alt = 'Classroom moment ' + (i + 1);
+      img.loading = 'lazy';
+      img.onerror = function(){ img.src = placeholderSVG(i); };
+      img.src = src;
+      card.appendChild(img);
+      track.appendChild(card);
+    });
 
-      const gl = glCanvas.getContext('webgl', { alpha: true, premultipliedAlpha: false });
-      let hasGL = false;
-      let prog = null, tex = null, posBuf = null, uvBuf = null;
-      let uTime = null, uRes = null, uEdge = null, uNoise = null, uScale = null, uAmount = null;
+    // Dots
+    dotsRoot.innerHTML = GALLERY_IMAGES.map(function(_, i){
+      return '<i' + (i === 0 ? ' class="is-on"' : '') + '></i>';
+    }).join('');
 
-      if (gl) {
-        prog = gl.createProgram();
-        gl.attachShader(prog, compileShader(gl, gl.VERTEX_SHADER, GRAIN_VERT));
-        gl.attachShader(prog, compileShader(gl, gl.FRAGMENT_SHADER, GRAIN_FRAG));
-        gl.linkProgram(prog);
-        if (gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-          hasGL = true;
-          gl.useProgram(prog);
+    var dots = dotsRoot.querySelectorAll('i');
+    var cards = track.querySelectorAll('.gallery-card');
+    var cardW = 320;
+    var gap = 20;
+    var itemW = cardW + gap;
+    var current = 0;
+    var isDragging = false;
+    var startX = 0;
+    var scrollStart = 0;
 
-          const verts = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
-          const uvs   = new Float32Array([0,0, 1,0, 0,1, 0,1, 1,0, 1,1]);
+    function update(){
+      var offset = -current * itemW + (host.clientWidth - cardW) / 2;
+      track.style.transform = 'translate3d(' + offset + 'px,0,0)';
+      dots.forEach(function(d, i){ d.classList.toggle('is-on', i === current); });
+    }
 
-          posBuf = gl.createBuffer();
-          gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
-          gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
-          const aPos = gl.getAttribLocation(prog, 'position');
-          gl.enableVertexAttribArray(aPos);
-          gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    function goTo(idx){
+      current = Math.max(0, Math.min(GALLERY_IMAGES.length - 1, idx));
+      update();
+    }
 
-          uvBuf = gl.createBuffer();
-          gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
-          gl.bufferData(gl.ARRAY_BUFFER, uvs, gl.STATIC_DRAW);
-          const aUv = gl.getAttribLocation(prog, 'uv');
-          gl.enableVertexAttribArray(aUv);
-          gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 0, 0);
-
-          uTime = gl.getUniformLocation(prog, 'uTime');
-          uRes = gl.getUniformLocation(prog, 'uResolution');
-          uEdge = gl.getUniformLocation(prog, 'uEdgeWidth');
-          uNoise = gl.getUniformLocation(prog, 'uNoiseSpeed');
-          uScale = gl.getUniformLocation(prog, 'uGrainScale');
-          uAmount = gl.getUniformLocation(prog, 'uGrainAmount');
-
-          tex = gl.createTexture();
-          gl.bindTexture(gl.TEXTURE_2D, tex);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        }
+    // Drag
+    host.addEventListener('pointerdown', function(e){
+      isDragging = true;
+      startX = e.clientX;
+      scrollStart = current;
+      host.setPointerCapture(e.pointerId);
+      track.style.transition = 'none';
+    });
+    host.addEventListener('pointermove', function(e){
+      if (!isDragging) return;
+      var dx = e.clientX - startX;
+      var offset = -scrollStart * itemW + (host.clientWidth - cardW) / 2 + dx;
+      track.style.transform = 'translate3d(' + offset + 'px,0,0)';
+    });
+    host.addEventListener('pointerup', function(e){
+      if (!isDragging) return;
+      isDragging = false;
+      track.style.transition = '';
+      var dx = e.clientX - startX;
+      if (Math.abs(dx) > 40) {
+        goTo(dx < 0 ? current + 1 : current - 1);
+      } else {
+        // click to centre
+        var rect = host.getBoundingClientRect();
+        var clickX = e.clientX - rect.left;
+        var target = Math.round((clickX - (host.clientWidth - cardW) / 2) / itemW) + current;
+        // simpler: just snap
+        goTo(current);
       }
-      glCanvas.style.opacity = hasGL ? '1' : '0';
-      fbCanvas.style.opacity = hasGL ? '0' : '1';
+    });
+    host.addEventListener('pointercancel', function(){
+      isDragging = false;
+      track.style.transition = '';
+      goTo(current);
+    });
 
-      let vw = 1, vh = 1, dpr = 1;
-      function resize(){
-        dpr = Math.min(window.devicePixelRatio || 1, 2);
-        vw = Math.max(1, host.clientWidth);
-        vh = Math.max(1, host.clientHeight);
-        const bw = Math.round(vw * dpr);
-        const bh = Math.round(vh * dpr);
-        [glCanvas, fbCanvas, strip].forEach(c => { c.width = bw; c.height = bh; });
-        if (gl && hasGL) gl.viewport(0, 0, bw, bh);
-      }
-      resize();
-      const ro = new ResizeObserver(resize);
-      ro.observe(host);
+    // Wheel
+    host.addEventListener('wheel', function(e){
+      e.preventDefault();
+      if (e.deltaY > 0 || e.deltaX > 0) goTo(current + 1);
+      else goTo(current - 1);
+    }, { passive: false });
 
-      let scrollX = 0, targetX = 0;
-      let snapTimer = 0;
-      let itemWidth = 1, centerOffset = 0;
-      let autoAdvance = true;
-      let snapAnim = null;
+    // Click dots
+    dots.forEach(function(d, i){
+      d.addEventListener('click', function(){ goTo(i); });
+    });
 
-      function startSnapAnim(from, to){
-        snapAnim = { from, delta: to - from, start: performance.now(), duration: 480 };
-      }
+    // Click cards
+    cards.forEach(function(c, i){
+      c.addEventListener('click', function(){ goTo(i); });
+    });
 
-      const drag = { active: false, id: -1, last: 0, x0: 0, y0: 0, click: true };
+    // Auto advance
+    var auto = setInterval(function(){
+      if (!isDragging) goTo((current + 1) % GALLERY_IMAGES.length);
+    }, 4200);
 
-      function onDown(e){
-        drag.active = true;
-        drag.id = e.pointerId;
-        drag.last = e.clientX;
-        drag.x0 = e.clientX;
-        drag.y0 = e.clientY;
-        drag.click = true;
-        snapAnim = null;
-        try { host.setPointerCapture(e.pointerId); } catch(_) {}
-      }
-      function onMove(e){
-        if (!drag.active || e.pointerId !== drag.id) return;
-        targetX -= (e.clientX - drag.last) * dragGain;
-        drag.last = e.clientX;
-        snapTimer = 0;
-        if (Math.abs(e.clientX - drag.x0) > 5 || Math.abs(e.clientY - drag.y0) > 5) drag.click = false;
-      }
-      function onUp(e){
-        if (!drag.active || e.pointerId !== drag.id) return;
-        drag.active = false;
-        try { host.releasePointerCapture(e.pointerId); } catch(_) {}
-
-        if (!loaded.length || itemWidth <= 0) return;
-        const current = Math.round((targetX + centerOffset) / itemWidth);
-
-        if (drag.click) {
-          const rect = host.getBoundingClientRect();
-          const clickX = e.clientX - rect.left;
-          const steps = Math.round((clickX - vw / 2) / itemWidth);
-          const nextX = (current + steps) * itemWidth - centerOffset;
-          startSnapAnim(scrollX, nextX);
-          targetX = nextX;
-        } else {
-          const nextX = current * itemWidth - centerOffset;
-          startSnapAnim(scrollX, nextX);
-          targetX = nextX;
-        }
-        snapTimer = 0;
-      }
-      function onWheel(e){
-        targetX += (e.deltaX || e.deltaY) * 0.9;
-        snapTimer = 0;
-        autoAdvance = false;
-        clearTimeout(host._wheelResume);
-        host._wheelResume = setTimeout(() => { autoAdvance = true; }, 2200);
-      }
-
-      host.addEventListener('pointerdown', onDown);
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-      window.addEventListener('pointercancel', onUp);
-      host.addEventListener('wheel', onWheel, { passive: true });
-
-      const dotsRoot = document.getElementById('grainyDots');
-      if (dotsRoot) {
-        dotsRoot.innerHTML = images.map((_, i) =>
-          '<i' + (i === 0 ? ' class="is-on"' : '') + '></i>'
-        ).join('');
-      }
-      const dots = dotsRoot ? dotsRoot.querySelectorAll('i') : [];
-      let lastDot = -1;
-
-      let raf = 0;
-      let last = performance.now();
-
-      function frame(now){
-        raf = requestAnimationFrame(frame);
-        const dt = Math.min((now - last) / 1000, 0.1);
-        last = now;
-
-        itemWidth = cardWidth + gap;
-        const total = Math.max(1, loaded.length * itemWidth);
-        centerOffset = (vw - cardWidth) / 2;
-
-        if (autoAdvance && !drag.active && !snapAnim) {
-          snapTimer += dt;
-          if (snapTimer >= snapInterval) {
-            const current = Math.round((targetX + centerOffset) / itemWidth);
-            targetX = (current + 1) * itemWidth - centerOffset;
-            startSnapAnim(scrollX, targetX);
-            snapTimer = 0;
-          }
-        }
-
-        if (snapAnim) {
-          const t = Math.min(1, (now - snapAnim.start) / snapAnim.duration);
-          const eased = 1 - Math.pow(1 - t, 3);
-          scrollX = snapAnim.from + snapAnim.delta * eased;
-          if (t >= 1) snapAnim = null;
-        } else {
-          const lf = 1 - Math.pow(1 - damping, dt * 60);
-          scrollX += (targetX - scrollX) * lf;
-        }
-
-        let visualScale = 1;
-        if (zoom > 0) {
-          const nearest = Math.round((scrollX + centerOffset) / itemWidth) * itemWidth - centerOffset;
-          let ratio = Math.min(Math.abs(scrollX - nearest) / (itemWidth / 2), 1);
-          ratio = ratio * ratio * (3 - 2 * ratio);
-          visualScale = 1 - ratio * zoom;
-        }
-
-        if (stripCtx) {
-          stripCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          stripCtx.clearRect(0, 0, vw, vh);
-
-          if (loaded.length) {
-            stripCtx.save();
-            if (visualScale !== 1) {
-              stripCtx.translate(vw / 2, vh / 2);
-              stripCtx.scale(visualScale, visualScale);
-              stripCtx.translate(-vw / 2, -vh / 2);
-            }
-            const y = (vh - cardHeight) / 2;
-            let wrapped = scrollX % total;
-            if (wrapped < 0) wrapped += total;
-
-            let x = -wrapped;
-            const leftBound = -vw * 1.5;
-            const rightBound = vw * 2.5;
-            let guard = 0;
-            while (x < rightBound && guard < 12) {
-              for (let i = 0; i < loaded.length; i++) {
-                const px = x + i * itemWidth;
-                if (px + cardWidth > leftBound && px < rightBound) {
-                  drawCover(stripCtx, loaded[i], px, y, cardWidth, cardHeight, rounded);
-                }
-              }
-              x += total;
-              guard++;
-            }
-            stripCtx.restore();
-          }
-        }
-
-        if (gl && hasGL) {
-          gl.bindTexture(gl.TEXTURE_2D, tex);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, strip);
-          gl.clearColor(0, 0, 0, 0);
-          gl.clear(gl.COLOR_BUFFER_BIT);
-          gl.uniform1f(uTime, now * 0.001);
-          gl.uniform2f(uRes, glCanvas.width, glCanvas.height);
-          gl.uniform1f(uEdge, edgeWidth);
-          gl.uniform1f(uNoise, noiseSpeed);
-          gl.uniform1f(uScale, grainScale);
-          gl.uniform1f(uAmount, grainAmount);
-          gl.drawArrays(gl.TRIANGLES, 0, 6);
-        } else {
-          const fb = fbCanvas.getContext('2d');
-          if (fb) {
-            fb.setTransform(1, 0, 0, 1, 0, 0);
-            fb.clearRect(0, 0, fbCanvas.width, fbCanvas.height);
-            fb.drawImage(strip, 0, 0);
-          }
-        }
-
-        if (dots.length) {
-          const cur = Math.round((scrollX + centerOffset) / itemWidth);
-          const idx = ((cur % loaded.length) + loaded.length) % loaded.length;
-          if (idx !== lastDot) {
-            lastDot = idx;
-            dots.forEach((d, i) => d.classList.toggle('is-on', i === idx));
-          }
-        }
-      }
-      raf = requestAnimationFrame(frame);
-
-      return () => {
-        cancelAnimationFrame(raf);
-        ro.disconnect();
-        host.removeEventListener('pointerdown', onDown);
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        window.removeEventListener('pointercancel', onUp);
-        host.removeEventListener('wheel', onWheel);
-        clearTimeout(host._wheelResume);
-        if (gl && hasGL) {
-          if (tex) gl.deleteTexture(tex);
-          if (posBuf) gl.deleteBuffer(posBuf);
-          if (uvBuf) gl.deleteBuffer(uvBuf);
-          if (prog) gl.deleteProgram(prog);
-        }
-      };
-    }, [images, cardWidth, cardHeight, gap, rounded, snapInterval, damping, zoom, dragGain, edgeWidth, noiseSpeed, grainScale, grainAmount]);
-
-    return (
-      <div ref={hostRef} className="grainy-host">
-        <canvas ref={glRef} aria-hidden="true" />
-        <canvas ref={fbRef} className="grainy-fb" aria-hidden="true" />
-        <div className="grainy-hint"><i></i> Drag · Scroll · Tap</div>
-      </div>
-    );
+    window.addEventListener('resize', update);
+    update();
   }
 
-  function GallerySection(){
-    const GALLERY_IMAGES = ['gnab2.png', 'gnab3.png', 'gnab4.png', 'gnab5.png'];
+  // Extra CSS for the simple gallery
+  var style = document.createElement('style');
+  style.textContent =
+    '.gallery-track{display:flex;gap:20px;transition:transform .55s cubic-bezier(.22,.61,.36,1);will-change:transform;height:100%;align-items:center;padding:0 20px}' +
+    '.gallery-card{flex:0 0 320px;height:320px;border-radius:20px;overflow:hidden;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 24px 50px rgba(0,0,0,.4);cursor:pointer;transition:transform .4s ease,box-shadow .4s ease}' +
+    '.gallery-card:hover{transform:scale(1.03)}' +
+    '.gallery-card img{width:100%;height:100%;object-fit:cover;display:block}' +
+    '@media(max-width:600px){.gallery-card{flex:0 0 260px;height:260px}}';
+  document.head.appendChild(style);
 
-    return (
-      <section className="grainy-section" id="gallery">
-        <div className="orb-layer" aria-hidden="true">
-          <div className="orb orb--blue orb--xl" style={{top:'-15%',left:'-10%'}}></div>
-          <div className="orb orb--cyan orb--xl" style={{bottom:'-15%',right:'-10%'}}></div>
-        </div>
-
-        <div className="grainy-head">
-          <p className="eyebrow">In Practice</p>
-          <h2 className="display">Moments from<br/>the classroom.</h2>
-          <p className="lead" style={{marginLeft:'auto',marginRight:'auto'}}>
-            Drag, scroll, or tap — the strip glides, snaps, and warps at the edges.
-          </p>
-        </div>
-
-        <GrainyGallery
-          images={GALLERY_IMAGES}
-          cardWidth={420}
-          cardHeight={420}
-          gap={22}
-          rounded={14}
-          snapInterval={4.2}
-          damping={0.22}
-          zoom={0.06}
-          dragGain={1.05}
-          edgeWidth={0.14}
-          noiseSpeed={0.28}
-          grainScale={250}
-          grainAmount={0.18}
-        />
-
-        <div className="grainy-meta">
-          <p>Drag to explore · Click a card to centre it</p>
-          <div className="grainy-dots" id="grainyDots" aria-hidden="true"></div>
-        </div>
-      </section>
-    );
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', buildGallery);
+  } else {
+    buildGallery();
   }
-
-  const grainyRoot = document.getElementById('grainyRoot');
-  if (grainyRoot) {
-    ReactDOM.createRoot(grainyRoot).render(<GallerySection />);
-  }
-})(window.React, window.ReactDOM);
+})();
 </script>
 
 <script>
@@ -2292,8 +1969,7 @@ ul{list-style:none}
     return parts.join('');
   }
 
-  var stage = document.getElementById('abacusStage');
-  if (stage) stage.innerHTML = buildAbacus({ rods: 9, gap: 56, id: 'Hero' });
+  
   var storyAb = document.getElementById('storyAbacus');
   if (storyAb) storyAb.innerHTML = buildAbacus({ rods: 7, gap: 56, id: 'Story' });
 
@@ -2566,13 +2242,7 @@ ul{list-style:none}
   function measure(){ heroH = heroSection ? heroSection.offsetHeight : window.innerHeight; }
   measure();
   window.addEventListener('resize', measure);
-  function updateHeroAbacus(y){
-    var card = document.getElementById('abacusCard');
-    if (!card || reduce) return;
-    var p = heroH > 0 ? y / heroH : 0;
-    card.classList.toggle('is-ghost', p > 0.18 && p <= 0.42);
-    card.classList.toggle('is-mental', p > 0.42);
-  }
+  function updateHeroAbacus(y){ /* hero abacus removed */ }
 
   var y = document.getElementById('year');
   if (y) y.textContent = new Date().getFullYear();
